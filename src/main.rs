@@ -15,14 +15,17 @@ struct Cli {
     /// Print in Key Uri Format(https://github.com/google/google-authenticator/wiki/Key-Uri-Format) instead
     #[arg(long,short)]
     uri: bool,
+    /// Print base32 encoded secret only, which is suitable with 'oathtool -d --totp'
+    #[arg(long,short)]
+    secret_only: bool,
 }
 
 fn main() {
     let cli = Cli::parse();
-    do_the_work(cli.uri);
+    do_the_work(&cli);
 }
 
-fn do_the_work(uri: bool) {
+fn do_the_work(cli: &Cli) {
     let mut data = String::new();
     io::stdin().read_line(&mut data).expect("Error read input");
 
@@ -33,9 +36,11 @@ fn do_the_work(uri: bool) {
     let payload = BASE64.decode(data.as_bytes()).expect("Failed to decode as base64");
     let payload = MigrationPayload::parse_from_bytes(&payload).expect("Unable to decode Protobuf message");
 
-    let decode_func = if uri {
+    let decode_func = if cli.uri {
         to_key_uri
-    } else {
+    } else if cli.secret_only {
+        to_secret_only
+    }   else {
         to_simple_foramt
     };
 
@@ -50,6 +55,10 @@ fn to_simple_foramt(otp: &migration_payload::OtpParameters) -> String {
     let secret = BASE32.encode(&otp.secret);
     format!("{}{}: {}", issuer, otp.name, secret)
  }
+
+fn to_secret_only(otp: &migration_payload::OtpParameters) -> String {
+    BASE32.encode(&otp.secret)
+}
 
 const SHA1: &str = "SHA1";
 const SHA256: &str = "SHA256";
